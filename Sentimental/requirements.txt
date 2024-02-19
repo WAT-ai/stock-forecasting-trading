@@ -1,0 +1,7 @@
+torch
+torchtext
+numpy
+pandas
+matplotlib
+kaggle
+csv
