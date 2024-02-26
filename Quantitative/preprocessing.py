@@ -6,7 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 import data_extractor
 
 
-API_KEY = 'DNWQMLFC43J1PHDI'
+API_KEY = 'YOUR API KEY HERE'
 TS = TimeSeries(key=API_KEY, output_format='pandas')
 import pandas as pd
 import numpy as np
@@ -39,15 +39,15 @@ def preprocess_stock_data(df, look_back):
     df_normalized = pd.DataFrame(scaler.fit_transform(df), columns=df.columns)
     
     # Convert to numpy array for model
-    data_array = df_normalized.to_numpy()
     
-    return data_array
+    
+    return df_normalized
 
+### Example usage
+# stock_data = data_extractor.get_stock_data('AAPL', TS, API_KEY, days_back=50)
+# print(stock_data)
 
-stock_data = data_extractor.get_stock_data('AAPL', TS, API_KEY, days_back=50)
-print(stock_data)
+# preprocessed_data = preprocess_stock_data(stock_data, 2)
 
-preprocessed_data = preprocess_stock_data(stock_data, 2)
-
-# Print preprocessed data
-print(preprocessed_data)
+# # Print preprocessed data
+# print(preprocessed_data)

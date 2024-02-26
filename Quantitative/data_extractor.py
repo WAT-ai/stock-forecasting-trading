@@ -6,7 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 # ==== GETTING DATA FROM API ==== 
-API_KEY = 'DNWQMLFC43J1PHDI'
+API_KEY = 'YOUR API KEY HERE'
 TS = TimeSeries(key=API_KEY, output_format='pandas')
 
 

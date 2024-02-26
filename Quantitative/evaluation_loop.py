@@ -4,7 +4,7 @@ from queue import Queue
 from typing import List, Dict, Tuple
 
 
-API_KEY = 'DNWQMLFC43J1PHDI'
+API_KEY = 'YOUR API KEY HERE'
 
 class Stock: 
 
@@ -151,42 +151,36 @@ def evaluate_stock(portfolio_data: Dict[str, Queue], symbol: str, result: str, n
             stock_queue.put(curr_stock)
 
         return None, None, None
-    
-from queue import Queue
-from typing import Dict, Tuple
 
-# Mocking the TimeSeries class and get_quote_endpoint function for testing
-class TimeSeries:
-    def __init__(self, key, output_format):
-        pass
+# #EXAMPLE
+# # Mocking the TimeSeries class and get_quote_endpoint function for testing
+# class TimeSeries:
+#     def __init__(self, key, output_format):
+#         pass
 
-    def get_quote_endpoint(self, symbol):
-        # Mocking data for testing
-        data = {'05. price': [150.0]}  # Mocking recent price
-        return data, None
+#     def get_quote_endpoint(self, symbol):
+#         # Mocking data for testing
+#         data = {'05. price': [150.0]}  # Mocking recent price
+#         return data, None
 
 
+# # Implementing the Stock class and required functions here
 
-# Importing numpy
-import numpy as np
+# # Mock data for testing
+# portfolio_data = {'AAPL': Queue(), 'GOOG': Queue()}
+# portfolio_data['AAPL'].put(Stock('AAPL', 154.0))
+# portfolio_data['AAPL'].put(Stock('AAPL', 151.0))
+# portfolio_data['AAPL'].put(Stock('AAPL', 145.0))
+# portfolio_data['GOOG'].put(Stock('GOOG', 200.0))
 
-# Implementing the Stock class and required functions here
+# # Mock result for testing
+# result = 'sell'
 
-# Mock data for testing
-portfolio_data = {'AAPL': Queue(), 'GOOG': Queue()}
-portfolio_data['AAPL'].put(Stock('AAPL', 154.0))
-portfolio_data['AAPL'].put(Stock('AAPL', 151.0))
-portfolio_data['AAPL'].put(Stock('AAPL', 145.0))
-portfolio_data['GOOG'].put(Stock('GOOG', 200.0))
-
-# Mock result for testing
-result = 'sell'
-
-# Number of stocks to buy/sell
-num_stocks = 4
-# Testing the evaluate_stock function
-sharpe_ratio, total_percent_return, win_loss_ratio = evaluate_stock(portfolio_data, 'AAPL', result, num_stocks)
-print("Sharpe Ratio:", sharpe_ratio)
-print("Total Percentage Return:", total_percent_return)
-print("Win Loss Ratio:", win_loss_ratio)
-print(portfolio_data['AAPL'].qsize())  # Expected output: 3
+# # Number of stocks to buy/sell
+# num_stocks = 4
+# # Testing the evaluate_stock function
+# sharpe_ratio, total_percent_return, win_loss_ratio = evaluate_stock(portfolio_data, 'AAPL', result, num_stocks)
+# print("Sharpe Ratio:", sharpe_ratio)
+# print("Total Percentage Return:", total_percent_return)
+# print("Win Loss Ratio:", win_loss_ratio)
+# print(portfolio_data['AAPL'].qsize())  # Expected output: 3
