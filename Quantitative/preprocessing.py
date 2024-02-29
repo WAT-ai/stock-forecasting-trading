@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import data_extractor
+import csv 
 
 
 API_KEY = 'YOUR API KEY HERE'
@@ -12,11 +13,11 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
-def preprocess_stock_data(df, look_back):
+def preprocess_stock_data(df):
     """
     Preprocesses the stock data DataFrame by adding lagged features, moving averages,
     daily returns, handling outliers, and normalizing the data.
-    Input: DataFrame of stock data (pd.DataFrame), look_back (int)
+    Input: DataFrame of stock data (pd.DataFrame)
     Output: preprocessed data (np.array)
     """
 
@@ -43,6 +44,12 @@ def preprocess_stock_data(df, look_back):
     
     return df_normalized
 
+
+def preprocess_sentiment(): 
+    "get data from a csv file, save it to a dataframe with a date column and a sentiment column"
+    df = pd.read_csv('Quantitative/MCD_Sentiment_Data.csv', index_col='Date')
+    return df
+
 ### Example usage
 # stock_data = data_extractor.get_stock_data('AAPL', TS, API_KEY, days_back=50)
 # print(stock_data)
@@ -51,3 +58,7 @@ def preprocess_stock_data(df, look_back):
 
 # # Print preprocessed data
 # print(preprocessed_data)
+
+# run preprocessed_sentiment() to get the sentiment data    
+sentiment_data = preprocess_sentiment()
+print(sentiment_data)

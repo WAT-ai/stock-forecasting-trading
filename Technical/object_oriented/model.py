@@ -82,13 +82,13 @@ class LstmModel:
         ds_new.extend(lst_output)
         final_graph = self.normalizer.inverse_transform(ds_new).tolist()
 
-        plt.plot(final_graph,)
-        plt.ylabel("Price")
-        plt.xlabel("Time")
-        plt.title("{0} prediction of next month open".format(self.stock_symbol))
-        plt.axhline(y=final_graph[len(final_graph)-1], color = 'red', linestyle = ':', label = 'NEXT 30D: {0}'.format(round(float(*final_graph[len(final_graph)-1]),2)))
-        plt.legend()
-        plt.show() #Should comment this line for the final model
+        # plt.plot(final_graph,)
+        # plt.ylabel("Price")
+        # plt.xlabel("Time")
+        # plt.title("{0} prediction of next month open".format(self.stock_symbol))
+        # plt.axhline(y=final_graph[len(final_graph)-1], color = 'red', linestyle = ':', label = 'NEXT 30D: {0}'.format(round(float(*final_graph[len(final_graph)-1]),2)))
+        # plt.legend()
+        # plt.show() #Should comment this line for the final model
         return round(float(*final_graph[len(final_graph)-1]),2)
 
     @staticmethod

@@ -6,7 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 # ==== GETTING DATA FROM API ==== 
-API_KEY = 'YOUR API KEY HERE'
+API_KEY = 'DNWQMLFC43J1PHDI'
 TS = TimeSeries(key=API_KEY, output_format='pandas')
 
 
@@ -101,7 +101,7 @@ def get_percentage_return(symbol, api_key):
 
 #==== SAMPLE OUTPUT DATA ====
 
-stock_data = get_stock_data('GOOG', TS, API_KEY)
+stock_data = get_stock_data('MCD', TS, API_KEY, 2462)
 stock_data.to_csv('data.csv')
 # daily = get_percentage_return('GOOG', API_KEY)
 # print(daily)

@@ -245,8 +245,9 @@ class StockRLNNTrainingEnv(gym.Env):
         pass
 
 if __name__ == "__main__":
-    # rl_env = StockRLNNTrainingEnv(...)
-    # agent = rl_env.compile(...)
-    # agent.learn(...)
-    # agent.predict()
+    LR = 0.01
+    rl_env = StockRLNNTrainingEnv(LR)
+    agent = rl_env.compile(...)
+    agent.learn(total_timestamps = 1000, log_interval = 10)
+    agent.predict()
     pass
