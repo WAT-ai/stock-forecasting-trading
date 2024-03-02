@@ -18,7 +18,7 @@ from stable_baselines3 import DDPG
 class StockRLFeatureExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space: spaces.Dict, num_indicators=0, num_price_predictions=0, num_sentiments=0, hidden_size=0):
-        super().__init__(observation_space, sum(num_indicators, num_price_predictions, num_sentiments))
+        super().__init__(observation_space, num_indicators + num_price_predictions+ num_sentiments)
         self.indicator_network = [
             nn.LSTM(num_indicators, 20),
             nn.LSTM(20, 20),
@@ -124,33 +124,38 @@ class StockRLNNTrainingEnv(gym.Env):
         self.base_prev_closing_prices = self.prev_closing_prices
         self.base_capital = self.capital
 
-        self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_assets))
+        self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_assets,))
         self.observation_space = spaces.Dict({
-            "indicators": spaces.Box(shape=(self.num_indicators)),
-            "price_predictions": spaces.Box(shape=(self.num_price_predictions)),
-            "sentiments": spaces.Box(shape=(self.num_sentiments))
+            "indicators": spaces.Box(low=0, high=10000, shape=(self.num_indicators,)),
+            "price_predictions": spaces.Box(low=0, high=10000, shape=(self.num_price_predictions,)),
+            "sentiments": spaces.Box(low=-2, high=10000, shape=(self.num_sentiments,))
         })
 
         return self.build_model()
 
     def sample_data(self, index=None):
-        if index is None:
-            return np.array(self.X_closing_prices.iloc[self.current_step]),
+        if self.current_step < len(self.X_closing_prices):
+            if index is None:
+                return np.array(self.X_closing_prices.iloc[self.current_step]), \
+                        {
+                            "indicators": np.array(self.X_indicators.iloc[self.current_step]),
+                            "price_predictions": np.array(self.X_price_predictions.iloc[self.current_step]), 
+                            "sentiments": np.array(self.X_sentiments.iloc[self.current_step])
+                        }
+            return np.array(self.X_closing_prices.iloc[index]), \
                     {
-                        "indicators": np.array(self.X_indicators.iloc[self.current_step]),
-                        "price_predictions": np.array(self.X_price_predictions.iloc[self.current_step]), \
-                        "sentiments": np.array(self.X_sentiments.iloc[self.current_step])
+                        "indicators": np.array(self.X_indicators.iloc[index]),
+                        "price_predictions": np.array(self.X_price_predictions.iloc[index]), 
+                        "sentiments": np.array(self.X_sentiments.iloc[index])
                     }
-        return np.array(self.X_closing_prices.iloc[index]),
-                {
-                    "indicators": np.array(self.X_indicators.iloc[index]),
-                    "price_predictions": np.array(self.X_price_predictions.iloc[index]), \
-                    "sentiments": np.array(self.X_sentiments.iloc[index])
-                }
+        else: 
+            self.current_step = 0
+     
+            return None, None   
     
     def calc_portfolio_value(self, portfolio: np.array, left_over_balance: float, closing_prices: np.array):
         # calculates portfolio value based on closing prices
-
+        print(portfolio, left_over_balance, closing_prices )
         return np.dot(closing_prices, portfolio) + left_over_balance
     
     def create_denormalized_action_space(self, closing_prices: np.array):
@@ -172,8 +177,8 @@ class StockRLNNTrainingEnv(gym.Env):
         agent = DDPG(
             env=self,
             policy="MultiInputPolicy",
+            learning_rate=self.learning_rate,
             policy_kwargs=dict(
-                learning_rate=self.learning_rate,
                 net_arch=[3 * self.num_assets, 32, self.num_assets],
                 features_extractor_class=StockRLFeatureExtractor,
                 features_extractor_kwargs=dict(
@@ -206,7 +211,7 @@ class StockRLNNTrainingEnv(gym.Env):
         self.prev_left_over_balance = self.left_over_balance
         self.prev_asset_quantities = self.asset_quantities
 
-        self.capital = self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, obs[0])
+        self.capital = self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, closing_prices)
         
         # sell and hold stocks based on the action
         for i, act in enumerate(action):
@@ -241,7 +246,7 @@ class StockRLNNTrainingEnv(gym.Env):
         self.left_over_balance = self.base_left_over_balance
         self.asset_quantities = self.base_asset_quantities
         self.prev_left_over_balance = self.base_prev_left_over_balance
-        self.base_prev_asset_quantities = self.base_prev_asset_quantities
+        self.prev_asset_quantities = self.base_prev_asset_quantities
         self.current_step = random.randint(1, len(self.X_closing_prices.index))
         _, new_data = self.sample_data()
         return new_data
@@ -249,9 +254,60 @@ class StockRLNNTrainingEnv(gym.Env):
     def render(self):
         pass
 
+
+def main (): 
+     # Create sample data frames for closing prices, indicators, price predictions, and sentiments
+    num_days = 100
+    num_assets = 5
+
+    # Sample closing prices data frame
+    closing_prices_df = pd.DataFrame(np.random.rand(num_days, num_assets) * 100, columns=[f"Asset_{i+1}" for i in range(num_assets)])
+
+
+    # Sample indicators data frame
+    indicators_df = pd.DataFrame(np.random.rand(num_days, num_assets) * 100, columns=[f"Indicator_{i+1}" for i in range(num_assets)])  
+
+    # Sample price predictions data frame
+    price_predictions_df = pd.DataFrame(np.random.rand(num_days, num_assets) * 100, columns=[f"Prediction_{i+1}" for i in range(num_assets)])
+
+    # Sample sentiments
+    sentiments_df = pd.DataFrame(np.random.rand(num_days, num_assets) * 100, columns=[f"Sentiment{i+1}" for i in range(num_assets)])
+
+    # Now, let's interact with the environment and agent
+
+    # Instantiate the environment and build the model
+    rl_env = StockRLNNTrainingEnv(0.01)
+
+    # Compile the environment with necessary parameters
+    agent = rl_env.compile(capital=10000, num_assets=num_assets, hold_threshold=0.1,
+                num_indicators=5, num_price_predictions=num_assets, num_sentiments=5,
+                X_closing_prices=closing_prices_df,
+                X_indicators=indicators_df,
+                X_price_predictions=price_predictions_df,
+                X_sentiments=sentiments_df)
+
+    # Train the model
+    agent.learn(total_timesteps=10000, log_interval=10)
+
+    # Make predictions
+    obs = rl_env.reset()
+    # action, _ = agent.predict(obs)
+
+    # # Perform a step in the environment
+    # next_obs, reward, done, info = env.step(action)
+
+    # # Reset the environment
+    # obs = env.reset()
+
+
 if __name__ == "__main__":
-    # rl_env = StockRLNNTrainingEnv(...)
-    # agent = rl_env.compile(...)
-    # agent.learn(...)
-    # agent.predict()
-    pass
+    main()
+        # LR = 0.01
+        # rl_env = StockRLNNTrainingEnv(LR)
+        # agent = rl_env.compile(...)
+        # agent.learn(total_timestamps = 1000, log_interval = 10)
+        # agent.predict()
+        # pass
+
+
+
