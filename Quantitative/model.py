@@ -124,11 +124,11 @@ class StockRLNNTrainingEnv(gym.Env):
         self.base_prev_closing_prices = self.prev_closing_prices
         self.base_capital = self.capital
 
-        self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_assets))
+        self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_assets,))
         self.observation_space = spaces.Dict({
-            "indicators": spaces.Box(shape=(self.num_indicators)),
-            "price_predictions": spaces.Box(shape=(self.num_price_predictions)),
-            "sentiments": spaces.Box(shape=(self.num_sentiments))
+            "indicators": spaces.Box(shape=(self.num_indicators,)),
+            "price_predictions": spaces.Box(shape=(self.num_price_predictions,)),
+            "sentiments": spaces.Box(shape=(self.num_sentiments,))
         })
 
         return self.build_model()
