@@ -18,7 +18,7 @@ from stable_baselines3 import DDPG
 class StockRLFeatureExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space: spaces.Dict, num_indicators=0, num_price_predictions=0, num_sentiments=0, hidden_size=0):
-        super().__init__(observation_space, sum(num_indicators, num_price_predictions, num_sentiments))
+        super().__init__(observation_space, num_indicators + num_price_predictions + num_sentiments)
         self.indicator_network = [
             nn.LSTM(num_indicators, 20),
             nn.LSTM(20, 20),
@@ -39,25 +39,35 @@ class StockRLFeatureExtractor(BaseFeaturesExtractor):
     def indicator_forward(self, indicators):
         x = indicators
         for layer in self.indicator_network[:-1]:
-            x = F.relu(layer(x))
-        return x
+            x, _ = layer(x)
+            x = F.relu(x)
+        return F.relu(self.indicator_network[-1](x))
 
     def price_prediction_forward(self, price_predictions):
         x = price_predictions
-        for layer in self.indicator_network[:-1]:
-            x = F.relu(layer(x))
-        return x
+        for layer in self.price_prediction_network[:-1]:
+            x, _ = layer(x)
+            x = F.relu(x)
+        return F.relu(self.price_prediction_network[-1](x))
     
     def sentiment_forward(self, sentiments):
         x = sentiments
-        for layer in self.indicator_network[:-1]:
-            x = F.relu(layer(x))
-        return x
+        for layer in self.sentiment_network[:-1]:
+            x, _ = layer(x)
+            x = F.relu(x)
+        return F.relu(self.sentiment_network[-1](x))
 
     def forward(self, observations):
-        return torch.cat(self.indicator_forward(observations["indicators"]), 
+        x = torch.cat((self.indicator_forward(observations["indicators"]), 
                       self.price_prediction_forward(observations["price_predictions"]), 
-                      self.sentiment_forward(observations["sentiments"]))
+                      self.sentiment_forward(observations["sentiments"])))
+        
+        if x.shape[0] == 3:
+            return torch.flatten(x)
+        
+        return torch.cat((self.indicator_forward(observations["indicators"]), 
+                      self.price_prediction_forward(observations["price_predictions"]), 
+                      self.sentiment_forward(observations["sentiments"])), 1)
 
 
 class StockRLNNTrainingEnv(gym.Env):
@@ -122,13 +132,14 @@ class StockRLNNTrainingEnv(gym.Env):
         self.prev_closing_prices = self.X_closing_prices.iloc[0]
 
         self.base_prev_closing_prices = self.prev_closing_prices
+        self.base_asset_quantities = np.zeros(self.num_assets)
         self.base_capital = self.capital
 
-        self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_assets))
+        self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_assets,))
         self.observation_space = spaces.Dict({
-            "indicators": spaces.Box(shape=(self.num_indicators)),
-            "price_predictions": spaces.Box(shape=(self.num_price_predictions)),
-            "sentiments": spaces.Box(shape=(self.num_sentiments))
+            "indicators": spaces.Box(low=0, high=10000000, shape=(self.num_indicators,)),
+            "price_predictions": spaces.Box(low=0, high=10000000, shape=(self.num_price_predictions,)),
+            "sentiments": spaces.Box(low=0, high=10000000, shape=(self.num_sentiments,))
         })
 
         return self.build_model()
@@ -136,17 +147,21 @@ class StockRLNNTrainingEnv(gym.Env):
     def sample_data(self, index=None):
         if index is None:
             return np.array(self.X_closing_prices.iloc[self.current_step]), \
-                    np.array(self.X_indicators.iloc[self.current_step]), \
-                    np.array(self.X_price_predictions.iloc[self.current_step]), \
-                    np.array(self.X_sentiments.iloc[self.current_step])
+                    {
+                        "indicators": np.array(self.X_indicators.iloc[self.current_step]),
+                        "price_predictions": np.array(self.X_price_predictions.iloc[self.current_step]), 
+                        "sentiments": np.array(self.X_sentiments.iloc[self.current_step])
+                    }
         return np.array(self.X_closing_prices.iloc[index]), \
-                np.array(self.X_indicators.iloc[index]), \
-                np.array(self.X_price_predictions.iloc[index]), \
-                np.array(self.X_sentiments.iloc[index])
+                {
+                    "indicators": np.array(self.X_indicators.iloc[index]),
+                    "price_predictions": np.array(self.X_price_predictions.iloc[index]), 
+                    "sentiments": np.array(self.X_sentiments.iloc[index])
+                }
     
     def calc_portfolio_value(self, portfolio: np.array, left_over_balance: float, closing_prices: np.array):
         # calculates portfolio value based on closing prices
-
+        
         return np.dot(closing_prices, portfolio) + left_over_balance
     
     def create_denormalized_action_space(self, closing_prices: np.array):
@@ -158,18 +173,18 @@ class StockRLNNTrainingEnv(gym.Env):
     def calc_reward(self, closing_prices: np.array):
         # calculates reward for the current state given closing prices
 
-        if self.prev_asset_quantities and self.prev_left_over_balance and self.prev_closing_prices:
+        if self.prev_asset_quantities is not None and self.prev_left_over_balance  is not None and self.prev_closing_prices is not None:
             return self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, closing_prices) - \
                 self.calc_portfolio_value(self.prev_asset_quantities, self.prev_left_over_balance, self.prev_closing_prices) - \
-                self.transaction_cost_percentage * (abs(self.asset_quantities - self.prev_asset_quantities) * closing_prices)
+                self.transaction_cost_percentage * np.dot(abs(self.asset_quantities - self.prev_asset_quantities), closing_prices)
         raise ValueError("Cannot create reward when previous (asset quantites, left over balance, closing prices) not present.")
     
     def build_model(self):
         agent = DDPG(
             env=self,
             policy="MultiInputPolicy",
+            learning_rate=self.learning_rate,
             policy_kwargs=dict(
-                learning_rate=self.learning_rate,
                 net_arch=[3 * self.num_assets, 32, self.num_assets],
                 features_extractor_class=StockRLFeatureExtractor,
                 features_extractor_kwargs=dict(
@@ -194,15 +209,15 @@ class StockRLNNTrainingEnv(gym.Env):
         
     def step(self, action):
         self.current_step += 1
-        if self.current_step == len(self.X_closing_prices.index):
+        if self.current_step >= len(self.X_closing_prices.index):
             self.current_step = 1
-        obs = self.sample_data()
-        self.prev_closing_prices, _, _, _ = self.sample_data(self.current_step - 1)
+        closing_prices, obs = self.sample_data()
+        self.prev_closing_prices, _ = self.sample_data(self.current_step - 1)
 
         self.prev_left_over_balance = self.left_over_balance
         self.prev_asset_quantities = self.asset_quantities
 
-        self.capital = self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, obs[0])
+        self.capital = self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, closing_prices)
         
         # sell and hold stocks based on the action
         for i, act in enumerate(action):
@@ -211,25 +226,25 @@ class StockRLNNTrainingEnv(gym.Env):
             elif act < 0:
                 sell_amt = -int(act * self.asset_quantities[i])
                 self.asset_quantities[i] -= sell_amt
-                self.left_over_balance += sell_amt * obs[0][i]
+                self.left_over_balance += sell_amt * closing_prices[i]
         
-        max_actions = self.create_denormalized_action_space(obs[0])
+        max_actions = self.create_denormalized_action_space(closing_prices)
 
         # buy stocks based on the action
         for i, act in enumerate(action):
             if act > 0:
                 buy_amt = int(act * max_actions[i])
-                if buy_amt * obs[0][i] > self.left_over_balance:
-                    while buy_amt * obs[0][i] > self.left_over_balance:
+                if buy_amt * closing_prices[i] > self.left_over_balance:
+                    while buy_amt * closing_prices[i] > self.left_over_balance:
                         buy_amt -= 1
                 self.asset_quantities[i] += buy_amt
-                self.left_over_balance -= buy_amt * obs[0][i]
+                self.left_over_balance -= buy_amt * closing_prices[i]
 
-        self.left_over_balance = self.capital - np.dot(obs[0], self.asset_quantities)
+        self.left_over_balance = self.capital - np.dot(closing_prices, self.asset_quantities)
         
-        reward = self.calc_reward(obs[0])
-        done = self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, obs[0]) <= 0
-        return obs[1:], reward, done, {}
+        reward = self.calc_reward(closing_prices)
+        done = self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, closing_prices) <= 0
+        return obs, reward, done, {}
     
     def reset(self):
         self.prev_closing_prices = self.base_prev_closing_prices
@@ -237,17 +252,11 @@ class StockRLNNTrainingEnv(gym.Env):
         self.left_over_balance = self.base_left_over_balance
         self.asset_quantities = self.base_asset_quantities
         self.prev_left_over_balance = self.base_prev_left_over_balance
-        self.base_prev_asset_quantities = self.base_prev_asset_quantities
-        self.current_step = random.randint(1, len(self.X_closing_prices.index))
-        return self.sample_data()
+        self.prev_asset_quantities = self.base_prev_asset_quantities
+        self.current_step = random.randint(1, len(self.X_closing_prices.index) - 1)
+        _, new_data = self.sample_data()
+        return new_data
 
     def render(self):
         pass
 
-if __name__ == "__main__":
-    LR = 0.01
-    rl_env = StockRLNNTrainingEnv(LR)
-    agent = rl_env.compile(...)
-    agent.learn(total_timestamps = 1000, log_interval = 10)
-    agent.predict()
-    pass
