@@ -135,14 +135,18 @@ class StockRLNNTrainingEnv(gym.Env):
 
     def sample_data(self, index=None):
         if index is None:
-            return np.array(self.X_closing_prices.iloc[self.current_step]), \
-                    np.array(self.X_indicators.iloc[self.current_step]), \
-                    np.array(self.X_price_predictions.iloc[self.current_step]), \
-                    np.array(self.X_sentiments.iloc[self.current_step])
-        return np.array(self.X_closing_prices.iloc[index]), \
-                np.array(self.X_indicators.iloc[index]), \
-                np.array(self.X_price_predictions.iloc[index]), \
-                np.array(self.X_sentiments.iloc[index])
+            return np.array(self.X_closing_prices.iloc[self.current_step]),
+                    {
+                        "indicators": np.array(self.X_indicators.iloc[self.current_step]),
+                        "price_predictions": np.array(self.X_price_predictions.iloc[self.current_step]), \
+                        "sentiments": np.array(self.X_sentiments.iloc[self.current_step])
+                    }
+        return np.array(self.X_closing_prices.iloc[index]),
+                {
+                    "indicators": np.array(self.X_indicators.iloc[index]),
+                    "price_predictions": np.array(self.X_price_predictions.iloc[index]), \
+                    "sentiments": np.array(self.X_sentiments.iloc[index])
+                }
     
     def calc_portfolio_value(self, portfolio: np.array, left_over_balance: float, closing_prices: np.array):
         # calculates portfolio value based on closing prices
@@ -196,8 +200,8 @@ class StockRLNNTrainingEnv(gym.Env):
         self.current_step += 1
         if self.current_step == len(self.X_closing_prices.index):
             self.current_step = 1
-        obs = self.sample_data()
-        self.prev_closing_prices, _, _, _ = self.sample_data(self.current_step - 1)
+        closing_prices, obs = self.sample_data()
+        self.prev_closing_prices, _ = self.sample_data(self.current_step - 1)
 
         self.prev_left_over_balance = self.left_over_balance
         self.prev_asset_quantities = self.asset_quantities
@@ -211,25 +215,25 @@ class StockRLNNTrainingEnv(gym.Env):
             elif act < 0:
                 sell_amt = -int(act * self.asset_quantities[i])
                 self.asset_quantities[i] -= sell_amt
-                self.left_over_balance += sell_amt * obs[0][i]
+                self.left_over_balance += sell_amt * closing_prices[i]
         
-        max_actions = self.create_denormalized_action_space(obs[0])
+        max_actions = self.create_denormalized_action_space(closing_prices)
 
         # buy stocks based on the action
         for i, act in enumerate(action):
             if act > 0:
                 buy_amt = int(act * max_actions[i])
-                if buy_amt * obs[0][i] > self.left_over_balance:
-                    while buy_amt * obs[0][i] > self.left_over_balance:
+                if buy_amt * closing_prices[i] > self.left_over_balance:
+                    while buy_amt * closing_prices[i] > self.left_over_balance:
                         buy_amt -= 1
                 self.asset_quantities[i] += buy_amt
-                self.left_over_balance -= buy_amt * obs[0][i]
+                self.left_over_balance -= buy_amt * closing_prices[i]
 
-        self.left_over_balance = self.capital - np.dot(obs[0], self.asset_quantities)
+        self.left_over_balance = self.capital - np.dot(closing_prices, self.asset_quantities)
         
-        reward = self.calc_reward(obs[0])
-        done = self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, obs[0]) <= 0
-        return obs[1:], reward, done, {}
+        reward = self.calc_reward(closing_prices)
+        done = self.calc_portfolio_value(self.asset_quantities, self.left_over_balance, closing_prices) <= 0
+        return obs, reward, done, {}
     
     def reset(self):
         self.prev_closing_prices = self.base_prev_closing_prices
@@ -239,7 +243,8 @@ class StockRLNNTrainingEnv(gym.Env):
         self.prev_left_over_balance = self.base_prev_left_over_balance
         self.base_prev_asset_quantities = self.base_prev_asset_quantities
         self.current_step = random.randint(1, len(self.X_closing_prices.index))
-        return self.sample_data()
+        _, new_data = self.sample_data()
+        return new_data
 
     def render(self):
         pass
