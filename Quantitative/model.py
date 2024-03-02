@@ -126,9 +126,9 @@ class StockRLNNTrainingEnv(gym.Env):
 
         self.action_space = spaces.Box(low=-1, high=1, shape=(self.num_assets,))
         self.observation_space = spaces.Dict({
-            "indicators": spaces.Box(lows=-1, high=10000, shape=(self.num_indicators,)),
-            "price_predictions": spaces.Box(lows=-1, high=10000, shape=(self.num_price_predictions,)),
-            "sentiments": spaces.Box(lows=-1, high=10000, shape=(self.num_sentiments,))
+            "indicators": spaces.Box(low=-1, high=10000, shape=(self.num_indicators,)),
+            "price_predictions": spaces.Box(low=-1, high=10000, shape=(self.num_price_predictions,)),
+            "sentiments": spaces.Box(low=-1, high=10000, shape=(self.num_sentiments,))
         })
 
         return self.build_model()
@@ -155,7 +155,9 @@ class StockRLNNTrainingEnv(gym.Env):
     
     def calc_portfolio_value(self, portfolio: np.array, left_over_balance: float, closing_prices: np.array):
         # calculates portfolio value based on closing prices
-        print(portfolio, left_over_balance, closing_prices )
+        # print(portfolio)
+        # print(left_over_balance)
+        # print(closing_prices)
         return np.dot(closing_prices, portfolio) + left_over_balance
     
     def create_denormalized_action_space(self, closing_prices: np.array):
@@ -277,7 +279,7 @@ def main ():
 
     # Instantiate the environment and build the model
     rl_env = StockRLNNTrainingEnv(0.01)
-
+ 
     # Compile the environment with necessary parameters
     agent = rl_env.compile(capital=10000, num_assets=num_assets, hold_threshold=0.1,
                 num_indicators=5, num_price_predictions=num_assets, num_sentiments=5,
@@ -285,7 +287,6 @@ def main ():
                 X_indicators=indicators_df,
                 X_price_predictions=price_predictions_df,
                 X_sentiments=sentiments_df)
-
     # Train the model
     agent.learn(total_timesteps=10000, log_interval=10)
 
